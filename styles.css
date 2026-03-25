@@ -431,6 +431,24 @@ html, body {
   opacity: 0.9;
 }
 
+/* Mission field — Loyal only. Separated by a green rule to feel like a directive. */
+.role-field-mission {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(90, 175, 120, 0.25);
+}
+
+.role-field-mission .role-field-label {
+  color: #5aaf78;
+  opacity: 1;
+  letter-spacing: 0.22em;
+}
+
+.role-field-mission .role-field-text {
+  opacity: 1;
+  font-style: italic;
+}
+
 .role-liar        { border-color: #7a1515; background: rgba(122,21,21,0.1);  color: #e86060; }
 .role-analyst     { border-color: #163050; background: rgba(22,48,80,0.12);  color: #6aa8d8; }
 .role-manipulator { border-color: #4a3018; background: rgba(74,48,24,0.12);  color: #c49a58; }

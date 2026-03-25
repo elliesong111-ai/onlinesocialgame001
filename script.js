@@ -43,7 +43,15 @@ const ROLES = {
     name: 'Loyal',
     style: "Never hedge. Never deflect. Never change your position under pressure. Every soft answer costs you.",
     goal: "Be so consistent that the group can't construct a reason to doubt you.",
-    win: "You receive the most Most Real votes."
+    win: "You receive the most Most Real votes — or your Most Suspicious vote correctly names the Liar.",
+    missions: [
+      "Once during the game, ask the person you suspect most to repeat exactly what they said — word for word. Don't let them rephrase.",
+      "Pick the person you trust least. At some point, ask them a direct yes or no question. Push back if they hedge.",
+      "Call someone out — out loud, in front of everyone — for an answer that felt managed. Name the exact moment.",
+      "At least twice, mirror back what someone just said before responding. Say: 'So what you're saying is...' Watch how they react.",
+      "Before the vote, make your suspicion known to one other person without saying it outright. Plant the seed. See if it spreads.",
+      "Ask one question the whole group must answer. Design it to be impossible to answer vaguely. Make it count."
+    ]
   }
 };
 
@@ -280,11 +288,19 @@ function qAll(sel) {
 
 function startGame() {
   const rolePool = shuffle([...ROLE_POOLS[state.playerCount]]);
-  state.players = state.playerNames.slice(0, state.playerCount).map((name, i) => ({
-    id: uid(),
-    name: name.trim() || 'Player ' + (i + 1),
-    role: rolePool[i]
-  }));
+  state.players = state.playerNames.slice(0, state.playerCount).map((name, i) => {
+    const role = rolePool[i];
+    const missions = ROLES.loyal.missions;
+    return {
+      id: uid(),
+      name: name.trim() || 'Player ' + (i + 1),
+      role,
+      // Loyal players get a randomly assigned field mission
+      mission: role === 'loyal'
+        ? missions[Math.floor(Math.random() * missions.length)]
+        : null
+    };
+  });
   state.phaseOrder = [...PHASE_ORDER[state.mode]];
   state.phaseIndex = 0;
   state.activePlayerIndex = 0;
@@ -399,9 +415,13 @@ function resolveWins() {
   }
 
   // Loyal (priority 4): receives the most Most Real votes
+  //   OR correctly named the Liar in their Most Suspicious vote (mission bonus)
   // Use findAll — 5-player games have two Loyal players; both are eligible
   findAll('loyal').forEach(loyalPlayer => {
-    if (maxReal > 0 && topRealIds.includes(loyalPlayer.id)) {
+    const primaryWin = maxReal > 0 && topRealIds.includes(loyalPlayer.id);
+    const loyalVote  = state.votes.mostSuspicious.find(v => v.voterId === loyalPlayer.id);
+    const missionWin = !!(liar && loyalVote && loyalVote.targetId === liar.id);
+    if (primaryWin || missionWin) {
       candidates.push({ id: loyalPlayer.id, priority: 4 });
     }
   });
@@ -587,6 +607,12 @@ function renderRoleReveal() {
     </div>
     <p class="reveal-instruction">Don't show others.</p>`;
 
+  const missionField = player.mission ? `
+        <div class="role-field role-field-mission">
+          <span class="role-field-label">MISSION</span>
+          <span class="role-field-text">${escapeHtml(player.mission)}</span>
+        </div>` : '';
+
   const visibleCard = `
     <div class="role-card role-card-visible role-${player.role}">
       <div class="role-card-name">${role.name}</div>
@@ -603,6 +629,7 @@ function renderRoleReveal() {
           <span class="role-field-label">WIN IF</span>
           <span class="role-field-text">${role.win}</span>
         </div>
+        ${missionField}
       </div>
     </div>
     <div style="width:100%;max-width:300px;">

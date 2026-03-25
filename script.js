@@ -58,53 +58,55 @@ const ROLE_POOLS = {
 // ============================================================
 
 const PHASES = {
-  // Green — 5 min target: 5 cards × ~60s avg interaction = ~5 min
+  // Green — 5 min target: 5 cards × ~60s avg interaction = ~5 min  |  full: 9 cards = ~9 min
   green: {
     name: 'GREEN', color: '#3a7d57', dimColor: '#0a160f',
     descriptor: 'Watch how people behave before they know they should.',
     bridge: "You've been watching. Something didn't add up. Trust that.",
     cardTimer: 30,
-    cardCounts: { quick: 1, mini: 5 }
+    cardCounts: { quick: 1, mini: 5, full: 9 }
   },
-  // Yellow — 10 min target: 6 cards × ~100s avg interaction = ~10 min
+  // Yellow — 10 min target: 6 cards × ~100s avg interaction = ~10 min  |  full: 9 cards = ~15 min
   yellow: {
     name: 'YELLOW', color: '#b8960c', dimColor: '#171200',
     descriptor: 'Someone in this room is being very careful.',
     bridge: "Someone here has been managing what they show you. You know who.",
     cardTimer: 30,
-    cardCounts: { quick: 1, mini: 6 }
+    cardCounts: { quick: 1, mini: 6, full: 9 }
   },
-  // Red — 8 min target: 5 cards × ~95s avg interaction = ~8 min
+  // Red — 8 min target: 5 cards × ~95s avg interaction = ~8 min  |  full: 9 cards = ~14 min
   red: {
     name: 'RED', color: '#b52a2a', dimColor: '#160606',
     descriptor: 'Pressure reveals what comfort hides.',
     bridge: 'You have what you need. The vote is almost here.',
     cardTimer: 25,
-    cardCounts: { quick: 1, mini: 5 }
+    cardCounts: { quick: 1, mini: 5, full: 9 }
   },
-  // Blue — 4 min target: 3 cards × ~80s avg interaction = ~4 min
+  // Blue — 4 min target: 3 cards × ~80s avg interaction = ~4 min  |  full: 8 cards = ~11 min
   blue: {
     name: 'BLUE', color: '#2471a3', dimColor: '#050d15',
     descriptor: 'Look back. The pattern is there if you found it.',
     bridge: 'One last thing before you decide.',
     cardTimer: 30,
-    cardCounts: { quick: 0, mini: 3 }
+    cardCounts: { quick: 0, mini: 3, full: 8 }
   },
-  // Black — 3 min target: 3 cards × ~60s avg interaction = ~3 min
+  // Black — 3 min target: 3 cards × ~60s avg interaction = ~3 min  |  full: 8 cards = ~8 min
   black: {
     name: 'END', color: '#888', dimColor: '#0a0a0a',
     descriptor: 'One last thing. Then we find out.',
     bridge: null,
     cardTimer: 30,
-    cardCounts: { quick: 0, mini: 3 }
+    cardCounts: { quick: 0, mini: 3, full: 8 }
   }
 };
 
 // Quick: 3 cards total (1 per phase), then straight to vote
-// Mini: full arc across all 5 phases
+// Mini:  full arc across all 5 phases (~30 min)
+// Full:  full arc, max cards per phase (~1 hour)
 const PHASE_ORDER = {
   quick: ['green', 'yellow', 'red'],
-  mini:  ['green', 'yellow', 'red', 'blue', 'black']
+  mini:  ['green', 'yellow', 'red', 'blue', 'black'],
+  full:  ['green', 'yellow', 'red', 'blue', 'black']
 };
 
 // ============================================================
@@ -508,6 +510,7 @@ function renderHome() {
 function renderMode() {
   const q = state.mode === 'quick' ? ' selected' : '';
   const m = state.mode === 'mini'  ? ' selected' : '';
+  const f = state.mode === 'full'  ? ' selected' : '';
   const disabled = state.mode ? '' : ' disabled';
   return `
     <div class="screen screen-mode">
@@ -525,6 +528,11 @@ function renderMode() {
           <div class="mode-name">MINI SESSION</div>
           <div class="mode-duration">~ 30 minutes</div>
           <div class="mode-desc">All five phases. Full arc.<br>Proper tension.</div>
+        </div>
+        <div class="mode-card${f}" data-mode="full" id="mode-full">
+          <div class="mode-name">FULL SESSION</div>
+          <div class="mode-duration">~ 1 hour</div>
+          <div class="mode-desc">All five phases. Maximum cards.<br>No one escapes scrutiny.</div>
         </div>
       </div>
       <div class="screen-footer">

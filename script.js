@@ -20,9 +20,17 @@ const ROLES = {
   liar: {
     id: 'liar',
     name: 'Liar',
-    style: "Mirror the room. But when it helps, redirect suspicion toward one specific person. Plant doubt — don't broadcast it.",
+    style: "Mirror the room. When it helps, redirect suspicion toward one specific person. Plant doubt — don't broadcast it.",
     goal: "Cast doubt on one specific person. Make the group question them more than they question you.",
-    win: "You're not the top vote in Most Suspicious. Someone else takes that spot."
+    win: "You're not the top vote in Most Suspicious. Someone else takes that spot.",
+    lies: [
+      "You find everyone in this room completely trustworthy tonight. Perform that the whole game.",
+      "You came in with zero suspicion of anyone. You still have none. Keep that story clean.",
+      "You're more certain than anyone else about who the liar is. Pick one person now — and commit to it publicly.",
+      "You feel completely at ease. Nothing anyone says tonight makes you the slightest bit uncomfortable.",
+      "You are the most straightforward person in this room. Make sure everyone knows it.",
+      "You have no agenda. You just want the group to find the truth — and you'll say so whenever it helps."
+    ]
   },
   analyst: {
     id: 'analyst',
@@ -34,15 +42,15 @@ const ROLES = {
   manipulator: {
     id: 'manipulator',
     name: 'Manipulator',
-    style: "Make consensus feel organic. Never be seen steering. Your preferred target should feel like the group's idea — not yours.",
-    goal: "Steer the group's suspicion toward your chosen target. The best manipulation is invisible.",
-    win: "At least two other players' Most Suspicious votes match yours."
+    style: "Stir noise. Agree with whoever just spoke. Change your read out loud, often. Introduce new suspects. The less the room can settle, the better.",
+    goal: "Prevent consensus. Keep suspicion scattered across as many people as possible. No single person should feel safe — or condemned.",
+    win: "The Most Suspicious vote ends in a tie. No one person stands out."
   },
   loyal: {
     id: 'loyal',
     name: 'Loyal',
-    style: "Never hedge. Never deflect. Never change your position under pressure. Every soft answer costs you.",
-    goal: "Be so consistent that the group can't construct a reason to doubt you.",
+    style: "Create moments where the Liar has to commit. Force specificity. Push back when answers get vague. The cracks appear under pressure — your job is to apply it.",
+    goal: "Find the Liar by making them uncomfortable. Don't wait for them to slip — engineer the slip.",
     win: "Your Most Suspicious vote correctly names the Liar.",
     missions: [
       "Once during the game, ask the person you suspect most to repeat exactly what they said — word for word. Don't let them rephrase.",
@@ -290,15 +298,14 @@ function startGame() {
   const rolePool = shuffle([...ROLE_POOLS[state.playerCount]]);
   state.players = state.playerNames.slice(0, state.playerCount).map((name, i) => {
     const role = rolePool[i];
-    const missions = ROLES.loyal.missions;
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
     return {
       id: uid(),
       name: name.trim() || 'Player ' + (i + 1),
       role,
-      // Loyal players get a randomly assigned field mission
-      mission: role === 'loyal'
-        ? missions[Math.floor(Math.random() * missions.length)]
-        : null
+      // Liar gets a randomly assigned lie to maintain; Loyal gets a field mission
+      lie:     role === 'liar'  ? pick(ROLES.liar.lies)         : null,
+      mission: role === 'loyal' ? pick(ROLES.loyal.missions)    : null
     };
   });
   state.phaseOrder = [...PHASE_ORDER[state.mode]];
@@ -391,14 +398,10 @@ function resolveWins() {
   // Priority order: Manipulator → Analyst → Liar → Loyal
   const candidates = [];
 
-  // Manipulator (priority 1): ≥3 total votes on the same Most Suspicious target
-  // (Manipulator + at least 2 others), AND Manipulator voted for that same target
-  if (manipulator) {
-    const sharedTargets = Object.keys(suspCount).filter(id => suspCount[id] >= 3);
-    const vote = state.votes.mostSuspicious.find(v => v.voterId === manipulator.id);
-    if (vote && sharedTargets.includes(vote.targetId)) {
-      candidates.push({ id: manipulator.id, priority: 1 });
-    }
+  // Manipulator (priority 1): Most Suspicious vote ends in a tie
+  // (≥2 people share the highest suspicion count — the room couldn't agree)
+  if (manipulator && topSuspIds.length >= 2) {
+    candidates.push({ id: manipulator.id, priority: 1 });
   }
 
   // Analyst (priority 2): their Most Suspicious vote landed on the actual Liar
@@ -604,6 +607,12 @@ function renderRoleReveal() {
     </div>
     <p class="reveal-instruction">Don't show others.</p>`;
 
+  const lieField = player.lie ? `
+        <div class="role-field role-field-lie">
+          <span class="role-field-label">YOUR LIE</span>
+          <span class="role-field-text">${escapeHtml(player.lie)}</span>
+        </div>` : '';
+
   const missionField = player.mission ? `
         <div class="role-field role-field-mission">
           <span class="role-field-label">MISSION</span>
@@ -626,7 +635,7 @@ function renderRoleReveal() {
           <span class="role-field-label">WIN IF</span>
           <span class="role-field-text">${role.win}</span>
         </div>
-        ${missionField}
+        ${lieField}${missionField}
       </div>
     </div>
     <div style="width:100%;max-width:300px;">

@@ -899,6 +899,10 @@ html, body {
   opacity: 0.9;
 }
 
+.lie-verdict-excerpt.mission {
+  color: #5aaf78;
+}
+
 .lie-verdict-btns {
   display: flex;
   gap: 10px;

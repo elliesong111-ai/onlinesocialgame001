@@ -251,7 +251,10 @@ const state = {
   winStates: [],
   lieVotes: [],
   lieVoteIndex: 0,
-  lieVoteResult: null
+  lieVoteResult: null,
+  lieVerdictPhase: 'lieVote',
+  missionVoteIndex: 0,
+  missionResults: []
 };
 
 // ============================================================
@@ -414,18 +417,31 @@ function resolveWins() {
     candidates.push({ id: liar.id, priority: 3 });
   }
 
-  // Loyal (priority 4): the Liar ends up as the top "Who is the Liar?" vote
-  // (pressure tactics worked — the whole group points at the Liar)
+  // Loyal: wins if Liar is top "Who is Liar?" vote (priority 4)
+  //        OR if Liar confirmed their mission was completed (priority 3 — same as Liar)
   // Use findAll — 5-player games have two Loyal players; both are eligible
   findAll('loyal').forEach(loyalPlayer => {
-    if (liar && topLiarIds.includes(liar.id)) {
+    const missionDone = state.missionResults.some(
+      r => r.loyalId === loyalPlayer.id && r.confirmed
+    );
+    const liarTopSuspect = liar && topLiarIds.includes(liar.id);
+    // Only push once per Loyal player, at the highest priority they qualify for
+    if (missionDone) {
+      candidates.push({ id: loyalPlayer.id, priority: 3 }); // mission boost
+    } else if (liarTopSuspect) {
       candidates.push({ id: loyalPlayer.id, priority: 4 });
     }
   });
 
-  // Sort by priority, cap at 2 winners
+  // Sort by priority; deduplicate by player (keep highest priority); cap at 2 winners
   candidates.sort((a, b) => a.priority - b.priority);
-  const winnerIds = candidates.slice(0, 2).map(c => c.id);
+  const seen = new Set();
+  const deduped = candidates.filter(c => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+  const winnerIds = deduped.slice(0, 2).map(c => c.id);
 
   return state.players.map(p => ({
     playerId: p.id,
@@ -760,10 +776,12 @@ function renderVote() {
 }
 
 // ---- RESULTS ----
+// Step 1: vote tally  → step 2: lie verdict (held/broke + mission judge)
+// Step 3: role reveal → step 4: winners
 function renderResults() {
   if (state.resultsStep === 1) return renderResultsVoteTally();
-  if (state.resultsStep === 2) return renderResultsRoles();
-  if (state.resultsStep === 3) return renderLieVerdict();
+  if (state.resultsStep === 2) return renderLieVerdict();
+  if (state.resultsStep === 3) return renderResultsRoles();
   return renderResultsWinners();
 }
 
@@ -791,7 +809,7 @@ function renderResultsVoteTally() {
         </div>
       </div>
       <div class="screen-footer">
-        <button class="btn btn-primary" id="btn-reveal-roles">REVEAL ROLES →</button>
+        <button class="btn btn-primary" id="btn-lie-verdict">LIE VERDICT →</button>
       </div>
     </div>`;
 }
@@ -812,13 +830,19 @@ function renderResultsRoles() {
         <div class="roles-reveal-list">${rows}</div>
       </div>
       <div class="screen-footer">
-        <button class="btn btn-primary" id="btn-lie-verdict">LIE VERDICT →</button>
+        <button class="btn btn-primary" id="btn-see-winners">REVEAL ROLES →</button>
       </div>
     </div>`;
 }
 
 // ---- LIE VERDICT ----
 function renderLieVerdict() {
+  return state.lieVerdictPhase === 'lieVote'
+    ? renderLieVerdictHeld()
+    : renderMissionVerdict();
+}
+
+function renderLieVerdictHeld() {
   const liar   = state.players.find(p => p.role === 'liar');
   const voters = state.players.filter(p => p.role !== 'liar');
   const voter  = voters[state.lieVoteIndex];
@@ -844,21 +868,70 @@ function renderLieVerdict() {
     </div>`;
 }
 
+function renderMissionVerdict() {
+  const liar   = state.players.find(p => p.role === 'liar');
+  const loyals = state.players.filter(p => p.role === 'loyal');
+  const loyal  = loyals[state.missionVoteIndex];
+  const n      = state.missionVoteIndex + 1;
+  const total  = loyals.length;
+
+  return `
+    <div class="screen screen-vote">
+      <div class="screen-header">
+        <span class="screen-title">MISSION VERDICT</span>
+      </div>
+      <div class="vote-content">
+        <div class="vote-question">Did <strong>${escapeHtml(loyal.name)}</strong> complete their mission?</div>
+        <div class="lie-verdict-excerpt mission">"${escapeHtml(loyal.mission)}"</div>
+        <div class="vote-voter-tag">
+          ${escapeHtml(liar.name)} is judging &nbsp;·&nbsp; ${n} of ${total}
+        </div>
+      </div>
+      <div class="screen-footer lie-verdict-btns">
+        <button class="btn btn-secondary" id="btn-mission-failed">FAILED</button>
+        <button class="btn btn-primary"   id="btn-mission-done">COMPLETED</button>
+      </div>
+    </div>`;
+}
+
 function advanceLieVote(held) {
   const voters = state.players.filter(p => p.role !== 'liar');
-  const voter  = voters[state.lieVoteIndex];
-  state.lieVotes.push({ voterId: voter.id, held });
+  state.lieVotes.push({ voterId: voters[state.lieVoteIndex].id, held });
 
   if (state.lieVoteIndex < voters.length - 1) {
     state.lieVoteIndex++;
     render();
   } else {
+    // All non-Liar players voted on the lie — now Liar judges Loyal missions
     const yesCount = state.lieVotes.filter(v => v.held).length;
     state.lieVoteResult = yesCount > voters.length / 2;
-    state.winStates     = resolveWins();
-    state.resultsStep   = 4;
-    render();
+    const loyals = state.players.filter(p => p.role === 'loyal');
+    if (loyals.length > 0) {
+      state.lieVerdictPhase  = 'missionVote';
+      state.missionVoteIndex = 0;
+      render();
+    } else {
+      finalizeLieVerdict();
+    }
   }
+}
+
+function advanceMissionVote(confirmed) {
+  const loyals = state.players.filter(p => p.role === 'loyal');
+  state.missionResults.push({ loyalId: loyals[state.missionVoteIndex].id, confirmed });
+
+  if (state.missionVoteIndex < loyals.length - 1) {
+    state.missionVoteIndex++;
+    render();
+  } else {
+    finalizeLieVerdict();
+  }
+}
+
+function finalizeLieVerdict() {
+  state.winStates   = resolveWins();
+  state.resultsStep = 3; // → role reveal
+  render();
 }
 
 function renderResultsWinners() {
@@ -1041,15 +1114,20 @@ function attachListeners() {
   }
 
   if (s === 'results') {
-    on('btn-reveal-roles', 'click', () => { state.resultsStep = 2; render(); });
-    on('btn-lie-verdict',  'click', () => {
-      state.lieVotes     = [];
-      state.lieVoteIndex = 0;
-      state.resultsStep  = 3;
+    on('btn-lie-verdict', 'click', () => {
+      state.lieVotes         = [];
+      state.lieVoteIndex     = 0;
+      state.missionResults   = [];
+      state.missionVoteIndex = 0;
+      state.lieVerdictPhase  = 'lieVote';
+      state.resultsStep      = 2;
       render();
     });
-    on('btn-lie-held',   'click', () => advanceLieVote(true));
-    on('btn-lie-broke',  'click', () => advanceLieVote(false));
+    on('btn-lie-held',       'click', () => advanceLieVote(true));
+    on('btn-lie-broke',      'click', () => advanceLieVote(false));
+    on('btn-mission-done',   'click', () => advanceMissionVote(true));
+    on('btn-mission-failed', 'click', () => advanceMissionVote(false));
+    on('btn-see-winners',    'click', () => { state.resultsStep = 4; render(); });
     on('btn-play-again', 'click', () => { resetState(); navigate('home'); });
     on('btn-new-session', 'click', () => {
       const names = [...state.playerNames];
@@ -1099,7 +1177,10 @@ function resetState() {
     winStates: [],
     lieVotes: [],
     lieVoteIndex: 0,
-    lieVoteResult: null
+    lieVoteResult: null,
+    lieVerdictPhase: 'lieVote',
+    missionVoteIndex: 0,
+    missionResults: []
   });
 }
 

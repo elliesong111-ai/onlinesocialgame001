@@ -36,7 +36,7 @@ const ROLES = {
     name: 'Manipulator',
     style: "Make consensus feel organic. Never be seen steering. Your preferred target should feel like the group's idea — not yours.",
     goal: "Steer the group's suspicion toward your chosen target. The best manipulation is invisible.",
-    win: "At least one other player's Most Suspicious vote matches yours."
+    win: "At least two other players' Most Suspicious votes match yours."
   },
   loyal: {
     id: 'loyal',
@@ -375,10 +375,10 @@ function resolveWins() {
   // Priority order: Manipulator → Analyst → Liar → Loyal
   const candidates = [];
 
-  // Manipulator (priority 1): ≥2 players voted the same Most Suspicious target
-  // AND Manipulator also voted for that same target
+  // Manipulator (priority 1): ≥3 total votes on the same Most Suspicious target
+  // (Manipulator + at least 2 others), AND Manipulator voted for that same target
   if (manipulator) {
-    const sharedTargets = Object.keys(suspCount).filter(id => suspCount[id] >= 2);
+    const sharedTargets = Object.keys(suspCount).filter(id => suspCount[id] >= 3);
     const vote = state.votes.mostSuspicious.find(v => v.voterId === manipulator.id);
     if (vote && sharedTargets.includes(vote.targetId)) {
       candidates.push({ id: manipulator.id, priority: 1 });

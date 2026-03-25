@@ -243,10 +243,10 @@ const state = {
   cardIndex: 0,
   activePlayerIndex: 0,
   timerCount: 0,
-  voteRound: 'mostReal',
+  voteRound: 'isLoyal',
   votePlayerIndex: 0,
   tempVote: null,
-  votes: { mostReal: [], mostSuspicious: [] },
+  votes: { isLoyal: [], isLiar: [] },
   resultsStep: 1,
   winStates: [],
   lieVotes: [],
@@ -315,7 +315,7 @@ function startGame() {
   state.phaseIndex = 0;
   state.activePlayerIndex = 0;
 
-  state.votes = { mostReal: [], mostSuspicious: [] };
+  state.votes = { isLoyal: [], isLiar: [] };
   state.revealIndex = 0;
   state.roleVisible = false;
   navigate('roleReveal');
@@ -355,7 +355,7 @@ function advanceCard() {
     if (state.phaseIndex < state.phaseOrder.length - 1) {
       navigate('phaseBridge');
     } else {
-      state.voteRound = 'mostReal';
+      state.voteRound = 'isLoyal';
       state.votePlayerIndex = 0;
       state.tempVote = null;
       navigate('vote');
@@ -376,20 +376,14 @@ function tallyVotes(category) {
 }
 
 function resolveWins() {
-  // Build vote tallies
-  const suspCount = {};
-  state.votes.mostSuspicious.forEach(v => {
-    suspCount[v.targetId] = (suspCount[v.targetId] || 0) + 1;
-  });
-  const realCount = {};
-  state.votes.mostReal.forEach(v => {
-    realCount[v.targetId] = (realCount[v.targetId] || 0) + 1;
+  // Build vote tallies from "Who is the Liar?" votes
+  const liarCount = {};
+  state.votes.isLiar.forEach(v => {
+    liarCount[v.targetId] = (liarCount[v.targetId] || 0) + 1;
   });
 
-  const maxSusp   = Object.values(suspCount).length ? Math.max(...Object.values(suspCount)) : 0;
-  const topSuspIds = Object.keys(suspCount).filter(id => suspCount[id] === maxSusp);
-  const maxReal   = Object.values(realCount).length ? Math.max(...Object.values(realCount)) : 0;
-  const topRealIds = Object.keys(realCount).filter(id => realCount[id] === maxReal);
+  const maxLiar    = Object.values(liarCount).length ? Math.max(...Object.values(liarCount)) : 0;
+  const topLiarIds = Object.keys(liarCount).filter(id => liarCount[id] === maxLiar);
 
   const findOne = role => state.players.find(p => p.role === role);
   const findAll = role => state.players.filter(p => p.role === role);
@@ -401,15 +395,15 @@ function resolveWins() {
   // Priority order: Manipulator → Analyst → Liar → Loyal
   const candidates = [];
 
-  // Manipulator (priority 1): Most Suspicious vote ends in a tie
-  // (≥2 people share the highest suspicion count — the room couldn't agree)
-  if (manipulator && topSuspIds.length >= 2) {
+  // Manipulator (priority 1): "Who is the Liar?" vote ends in a tie
+  // (≥2 people share the highest vote count — the room couldn't agree)
+  if (manipulator && topLiarIds.length >= 2) {
     candidates.push({ id: manipulator.id, priority: 1 });
   }
 
-  // Analyst (priority 2): their Most Suspicious vote landed on the actual Liar
+  // Analyst (priority 2): their "Who is the Liar?" vote correctly identified the Liar
   if (analyst && liar) {
-    const vote = state.votes.mostSuspicious.find(v => v.voterId === analyst.id);
+    const vote = state.votes.isLiar.find(v => v.voterId === analyst.id);
     if (vote && vote.targetId === liar.id) {
       candidates.push({ id: analyst.id, priority: 2 });
     }
@@ -420,11 +414,11 @@ function resolveWins() {
     candidates.push({ id: liar.id, priority: 3 });
   }
 
-  // Loyal (priority 4): the Liar ends up as the room's top suspect
+  // Loyal (priority 4): the Liar ends up as the top "Who is the Liar?" vote
   // (pressure tactics worked — the whole group points at the Liar)
   // Use findAll — 5-player games have two Loyal players; both are eligible
   findAll('loyal').forEach(loyalPlayer => {
-    if (liar && topSuspIds.includes(liar.id)) {
+    if (liar && topLiarIds.includes(liar.id)) {
       candidates.push({ id: loyalPlayer.id, priority: 4 });
     }
   });
@@ -728,7 +722,7 @@ function renderPhaseBridge() {
 
 // ---- VOTE ----
 function renderVote() {
-  const isReal     = state.voteRound === 'mostReal';
+  const isLoyal    = state.voteRound === 'isLoyal';
   const voter      = state.players[state.votePlayerIndex];
   const n          = state.votePlayerIndex + 1;
   const total      = state.players.length;
@@ -738,15 +732,14 @@ function renderVote() {
   return `
     <div class="screen screen-vote">
       <div class="screen-header">
-        <span class="screen-title">${isReal ? 'MOST REAL' : 'MOST SUSPICIOUS'}</span>
+        <span class="screen-title">${isLoyal ? 'WHO IS LOYAL?' : 'WHO IS THE LIAR?'}</span>
       </div>
       <div class="vote-content">
         <div class="vote-question">
-          ${isReal
-            ? 'Who felt consistent the whole time — never managing what they showed?'
-            : 'Who deflected, hedged, or changed their answer at the wrong moment?'}
+          ${isLoyal
+            ? 'Who do you think is the Loyal player?'
+            : 'Who do you think is the Liar?'}
         </div>
-        ${!isReal ? `<div class="vote-signal-hint">Watch for: deflection &nbsp;·&nbsp; hedging &nbsp;·&nbsp; inconsistency &nbsp;·&nbsp; premature accusation</div>` : ''}
         <div class="vote-voter-tag">
           ${escapeHtml(voter.name)} is voting &nbsp;·&nbsp; ${n} of ${total}
         </div>
@@ -779,8 +772,8 @@ function renderResultsVoteTally() {
     const p = state.players.find(pl => pl.id === id);
     return p ? p.name : '?';
   };
-  const realW = tallyVotes('mostReal').map(id => escapeHtml(getName(id))).join(', ') || '—';
-  const suspW = tallyVotes('mostSuspicious').map(id => escapeHtml(getName(id))).join(', ') || '—';
+  const loyalW = tallyVotes('isLoyal').map(id => escapeHtml(getName(id))).join(', ') || '—';
+  const liarW  = tallyVotes('isLiar').map(id => escapeHtml(getName(id))).join(', ') || '—';
 
   return `
     <div class="screen screen-results">
@@ -789,12 +782,12 @@ function renderResultsVoteTally() {
       </div>
       <div class="results-content">
         <div class="result-block">
-          <div class="result-block-label">MOST REAL</div>
-          <div class="result-block-names">${realW}</div>
+          <div class="result-block-label">VOTED LOYAL</div>
+          <div class="result-block-names">${loyalW}</div>
         </div>
         <div class="result-block">
-          <div class="result-block-label">MOST SUSPICIOUS</div>
-          <div class="result-block-names">${suspW}</div>
+          <div class="result-block-label">VOTED LIAR</div>
+          <div class="result-block-names">${liarW}</div>
         </div>
       </div>
       <div class="screen-footer">
@@ -1035,8 +1028,8 @@ function attachListeners() {
       if (state.votePlayerIndex < state.players.length - 1) {
         state.votePlayerIndex++;
         render();
-      } else if (state.voteRound === 'mostReal') {
-        state.voteRound       = 'mostSuspicious';
+      } else if (state.voteRound === 'isLoyal') {
+        state.voteRound       = 'isLiar';
         state.votePlayerIndex = 0;
         render();
       } else {
@@ -1098,10 +1091,10 @@ function resetState() {
     cardIndex: 0,
     activePlayerIndex: 0,
     timerCount: 0,
-    voteRound: 'mostReal',
+    voteRound: 'isLoyal',
     votePlayerIndex: 0,
     tempVote: null,
-    votes: { mostReal: [], mostSuspicious: [] },
+    votes: { isLoyal: [], isLiar: [] },
     resultsStep: 1,
     winStates: [],
     lieVotes: [],

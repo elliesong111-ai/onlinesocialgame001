@@ -888,6 +888,26 @@ html, body {
   padding: 4px 8px;
 }
 
+/* Lie verdict screen */
+.lie-verdict-excerpt {
+  font-size: 16px;
+  font-weight: 300;
+  font-style: italic;
+  color: #e86060;
+  line-height: 1.5;
+  padding: 16px 0 4px;
+  opacity: 0.9;
+}
+
+.lie-verdict-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.lie-verdict-btns .btn {
+  flex: 1;
+}
+
 .results-btns {
   display: flex;
   gap: 10px;

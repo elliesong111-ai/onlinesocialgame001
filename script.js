@@ -22,7 +22,7 @@ const ROLES = {
     name: 'Liar',
     style: "Mirror the room. When it helps, redirect suspicion toward one specific person. Plant doubt — don't broadcast it.",
     goal: "Cast doubt on one specific person. Make the group question them more than they question you.",
-    win: "You're not the top vote in Most Suspicious. Someone else takes that spot.",
+    win: "Majority of the room confirms your lie held throughout.",
     lies: [
       "You find everyone in this room completely trustworthy tonight. Perform that the whole game.",
       "You came in with zero suspicion of anyone. You still have none. Keep that story clean.",
@@ -51,7 +51,7 @@ const ROLES = {
     name: 'Loyal',
     style: "Create moments where the Liar has to commit. Force specificity. Push back when answers get vague. The cracks appear under pressure — your job is to apply it.",
     goal: "Find the Liar by making them uncomfortable. Don't wait for them to slip — engineer the slip.",
-    win: "Your Most Suspicious vote correctly names the Liar.",
+    win: "The Liar ends up as the room's top suspect — your pressure made the room see it.",
     missions: [
       "Once during the game, ask the person you suspect most to repeat exactly what they said — word for word. Don't let them rephrase.",
       "Pick the person you trust least. At some point, ask them a direct yes or no question. Push back if they hedge.",
@@ -248,7 +248,10 @@ const state = {
   tempVote: null,
   votes: { mostReal: [], mostSuspicious: [] },
   resultsStep: 1,
-  winStates: []
+  winStates: [],
+  lieVotes: [],
+  lieVoteIndex: 0,
+  lieVoteResult: null
 };
 
 // ============================================================
@@ -412,16 +415,16 @@ function resolveWins() {
     }
   }
 
-  // Liar (priority 3): NOT the top Most Suspicious target
-  if (liar && !topSuspIds.includes(liar.id)) {
+  // Liar (priority 3): majority of non-Liar players confirmed the lie held (lie verdict vote)
+  if (liar && state.lieVoteResult === true) {
     candidates.push({ id: liar.id, priority: 3 });
   }
 
-  // Loyal (priority 4): correctly named the Liar in their Most Suspicious vote
+  // Loyal (priority 4): the Liar ends up as the room's top suspect
+  // (pressure tactics worked — the whole group points at the Liar)
   // Use findAll — 5-player games have two Loyal players; both are eligible
   findAll('loyal').forEach(loyalPlayer => {
-    const loyalVote = state.votes.mostSuspicious.find(v => v.voterId === loyalPlayer.id);
-    if (liar && loyalVote && loyalVote.targetId === liar.id) {
+    if (liar && topSuspIds.includes(liar.id)) {
       candidates.push({ id: loyalPlayer.id, priority: 4 });
     }
   });
@@ -767,6 +770,7 @@ function renderVote() {
 function renderResults() {
   if (state.resultsStep === 1) return renderResultsVoteTally();
   if (state.resultsStep === 2) return renderResultsRoles();
+  if (state.resultsStep === 3) return renderLieVerdict();
   return renderResultsWinners();
 }
 
@@ -815,9 +819,53 @@ function renderResultsRoles() {
         <div class="roles-reveal-list">${rows}</div>
       </div>
       <div class="screen-footer">
-        <button class="btn btn-primary" id="btn-see-winners">SEE RESULTS →</button>
+        <button class="btn btn-primary" id="btn-lie-verdict">LIE VERDICT →</button>
       </div>
     </div>`;
+}
+
+// ---- LIE VERDICT ----
+function renderLieVerdict() {
+  const liar   = state.players.find(p => p.role === 'liar');
+  const voters = state.players.filter(p => p.role !== 'liar');
+  const voter  = voters[state.lieVoteIndex];
+  const n      = state.lieVoteIndex + 1;
+  const total  = voters.length;
+
+  return `
+    <div class="screen screen-vote">
+      <div class="screen-header">
+        <span class="screen-title">LIE VERDICT</span>
+      </div>
+      <div class="vote-content">
+        <div class="vote-question">Did <strong>${escapeHtml(liar.name)}</strong> maintain this the whole game?</div>
+        <div class="lie-verdict-excerpt">"${escapeHtml(liar.lie)}"</div>
+        <div class="vote-voter-tag">
+          ${escapeHtml(voter.name)} is judging &nbsp;·&nbsp; ${n} of ${total}
+        </div>
+      </div>
+      <div class="screen-footer lie-verdict-btns">
+        <button class="btn btn-secondary" id="btn-lie-broke">BROKE IT</button>
+        <button class="btn btn-primary"   id="btn-lie-held">HELD IT</button>
+      </div>
+    </div>`;
+}
+
+function advanceLieVote(held) {
+  const voters = state.players.filter(p => p.role !== 'liar');
+  const voter  = voters[state.lieVoteIndex];
+  state.lieVotes.push({ voterId: voter.id, held });
+
+  if (state.lieVoteIndex < voters.length - 1) {
+    state.lieVoteIndex++;
+    render();
+  } else {
+    const yesCount = state.lieVotes.filter(v => v.held).length;
+    state.lieVoteResult = yesCount > voters.length / 2;
+    state.winStates     = resolveWins();
+    state.resultsStep   = 4;
+    render();
+  }
 }
 
 function renderResultsWinners() {
@@ -992,8 +1040,8 @@ function attachListeners() {
         state.votePlayerIndex = 0;
         render();
       } else {
-        state.winStates    = resolveWins();
-        state.resultsStep  = 1;
+        // Don't resolve wins yet — Liar win depends on lie verdict (results step 3)
+        state.resultsStep = 1;
         navigate('results');
       }
     });
@@ -1001,9 +1049,16 @@ function attachListeners() {
 
   if (s === 'results') {
     on('btn-reveal-roles', 'click', () => { state.resultsStep = 2; render(); });
-    on('btn-see-winners',  'click', () => { state.resultsStep = 3; render(); });
-    on('btn-play-again',   'click', () => { resetState(); navigate('home'); });
-    on('btn-new-session',  'click', () => {
+    on('btn-lie-verdict',  'click', () => {
+      state.lieVotes     = [];
+      state.lieVoteIndex = 0;
+      state.resultsStep  = 3;
+      render();
+    });
+    on('btn-lie-held',   'click', () => advanceLieVote(true));
+    on('btn-lie-broke',  'click', () => advanceLieVote(false));
+    on('btn-play-again', 'click', () => { resetState(); navigate('home'); });
+    on('btn-new-session', 'click', () => {
       const names = [...state.playerNames];
       const count = state.playerCount;
       const mode  = state.mode;
@@ -1048,7 +1103,10 @@ function resetState() {
     tempVote: null,
     votes: { mostReal: [], mostSuspicious: [] },
     resultsStep: 1,
-    winStates: []
+    winStates: [],
+    lieVotes: [],
+    lieVoteIndex: 0,
+    lieVoteResult: null
   });
 }
 

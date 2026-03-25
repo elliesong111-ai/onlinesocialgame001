@@ -43,7 +43,7 @@ const ROLES = {
     name: 'Loyal',
     style: "Never hedge. Never deflect. Never change your position under pressure. Every soft answer costs you.",
     goal: "Be so consistent that the group can't construct a reason to doubt you.",
-    win: "You receive the most Most Real votes — or your Most Suspicious vote correctly names the Liar.",
+    win: "Your Most Suspicious vote correctly names the Liar.",
     missions: [
       "Once during the game, ask the person you suspect most to repeat exactly what they said — word for word. Don't let them rephrase.",
       "Pick the person you trust least. At some point, ask them a direct yes or no question. Push back if they hedge.",
@@ -414,14 +414,11 @@ function resolveWins() {
     candidates.push({ id: liar.id, priority: 3 });
   }
 
-  // Loyal (priority 4): receives the most Most Real votes
-  //   OR correctly named the Liar in their Most Suspicious vote (mission bonus)
+  // Loyal (priority 4): correctly named the Liar in their Most Suspicious vote
   // Use findAll — 5-player games have two Loyal players; both are eligible
   findAll('loyal').forEach(loyalPlayer => {
-    const primaryWin = maxReal > 0 && topRealIds.includes(loyalPlayer.id);
-    const loyalVote  = state.votes.mostSuspicious.find(v => v.voterId === loyalPlayer.id);
-    const missionWin = !!(liar && loyalVote && loyalVote.targetId === liar.id);
-    if (primaryWin || missionWin) {
+    const loyalVote = state.votes.mostSuspicious.find(v => v.voterId === loyalPlayer.id);
+    if (liar && loyalVote && loyalVote.targetId === liar.id) {
       candidates.push({ id: loyalPlayer.id, priority: 4 });
     }
   });

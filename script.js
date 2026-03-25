@@ -51,14 +51,14 @@ const ROLES = {
     name: 'Loyal',
     style: "Create moments where the Liar has to commit. Force specificity. Push back when answers get vague. The cracks appear under pressure — your job is to apply it.",
     goal: "Find the Liar by making them uncomfortable. Don't wait for them to slip — engineer the slip.",
-    win: "The Liar ends up as the room's top suspect — your pressure made the room see it.",
+    win: "Your mission is confirmed by the Liar — you engineered the moment that exposed them.",
     missions: [
-      "Once during the game, ask the person you suspect most to repeat exactly what they said — word for word. Don't let them rephrase.",
-      "Pick the person you trust least. At some point, ask them a direct yes or no question. Push back if they hedge.",
-      "Call someone out — out loud, in front of everyone — for an answer that felt managed. Name the exact moment.",
-      "At least twice, mirror back what someone just said before responding. Say: 'So what you're saying is...' Watch how they react.",
-      "Before the vote, make your suspicion known to one other person without saying it outright. Plant the seed. See if it spreads.",
-      "Ask one question the whole group must answer. Design it to be impossible to answer vaguely. Make it count."
+      "Pick the person you suspect most. At some point, ask them to say in one sentence what they actually believe about everyone here tonight — no softening. If they can't commit, make sure the room notices.",
+      "Before the vote, say out loud: 'I think [name] has been performing a version of themselves tonight.' Name the person. Make them defend that claim in front of everyone.",
+      "Find a specific moment where someone's visible behavior contradicted what they claimed to be feeling. Name that moment in front of the group. Ask them to explain the gap.",
+      "Create a direct pressure moment for the person you suspect most. Ask them a question that forces them to commit to a position they've been carefully avoiding. Don't let them answer with a question.",
+      "Before the final vote, get the person you suspect to publicly repeat their clearest claim about themselves tonight. One sentence. The room will judge whether it held.",
+      "At some point, say to one other player: 'Watch how [name] reacts when they're put on the spot.' Then put that person on the spot. See what the other player notices."
     ]
   }
 };

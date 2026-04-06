@@ -53,12 +53,17 @@ const ROLES = {
     goal: "Find the Liar by making them uncomfortable. Don't wait for them to slip — engineer the slip.",
     win: "Your mission is confirmed by the Liar — you engineered the moment that exposed them.",
     missions: [
-      "Pick the person you suspect most. At some point, ask them to say in one sentence what they actually believe about everyone here tonight — no softening. If they can't commit, make sure the room notices.",
-      "Before the vote, say out loud: 'I think [name] has been performing a version of themselves tonight.' Name the person. Make them defend that claim in front of everyone.",
-      "Find a specific moment where someone's visible behavior contradicted what they claimed to be feeling. Name that moment in front of the group. Ask them to explain the gap.",
-      "Create a direct pressure moment for the person you suspect most. Ask them a question that forces them to commit to a position they've been carefully avoiding. Don't let them answer with a question.",
-      "Before the final vote, get the person you suspect to publicly repeat their clearest claim about themselves tonight. One sentence. The room will judge whether it held.",
-      "At some point, say to one other player: 'Watch how [name] reacts when they're put on the spot.' Then put that person on the spot. See what the other player notices."
+      "THE THREE-POINT CASE. Three steps — all required. (1) Before phase 2 ends, name your suspect out loud to the group. (2) At least one phase later, ask them a direct question that forces a specific commitment — no hypotheticals, no deflections. If they dodge, call it out immediately in front of the room. (3) Before the final vote, build the case out loud: what they claimed, where it didn't hold, and what they were performing instead. The Liar confirms whether all three steps happened.",
+
+      "THE PLANTED QUESTION. You cannot ask the key pressure question yourself. (1) Decide what your suspect has been performing — their fake disposition tonight — and what one question would crack it. (2) Without naming your suspect, plant that specific question into another player. Get them to ask it. (3) After the answer lands, publicly name what you were testing for and whether it revealed anything. The Liar confirms whether the planted question actually happened and whether you named your intent afterward.",
+
+      "THE BEHAVIORAL RECORD. Accusations aren't evidence — moments are. (1) Over at least two separate phases, track moments where your suspect's visible behavior (a hesitation, an over-explanation, a physical reaction) contradicted their stated position. (2) Before the vote, present three specific moments on the record: for each one, name exactly what was said, what was visibly done, and what the gap between them suggests. (3) You cannot reframe a single moment as two, and you cannot use anything from the final phase. The Liar confirms whether three real, distinct moments were actually cited.",
+
+      "THE RETURN VISIT. Plant a claim, let it sit, come back to collect. (1) Early in the game — within the first two phases — get your suspect to make a clear claim about themselves: how they're feeling, what they believe, or where their suspicion lies. One sentence, on the record. (2) Do not address them again for at least one full phase. (3) Return to the exact claim: ask them to confirm it still holds or repeat it now. (4) Before the vote, read both versions back to the room and tell everyone what changed — or what suspiciously didn't. The Liar confirms whether you actually executed the return and delivered the comparison.",
+
+      "THE WITNESS SETUP. You're building a case with a second pair of eyes. (1) Before phase 3, tell one other player out loud — in front of others: 'I need you to watch [name] closely.' Name your suspect publicly. (2) At least one phase later, create a direct pressure moment for your suspect with your witness present: a question, a challenge, a call-out. (3) Immediately after, ask your witness publicly: 'What did you just notice?' Do not coach their answer. (4) Before the final vote, connect what your witness observed to your accusation — and name why that outside view matters. The Liar confirms whether all four steps happened in order.",
+
+      "THE LOGIC TRAP. Don't call them a liar — make their own story collapse. (1) Identify the specific disposition your suspect has been performing all night: ease, certainty, openness, innocence — one clear thing. (2) In front of the group, challenge the internal logic of that claim without accusing them of lying: 'For that to be true, you'd also have to believe X — do you?' Make the contradiction structural, not personal. (3) Force a public response: they must double down, qualify, or retreat. Don't let them non-answer. (4) Before the final vote, name which of those three responses they gave — and tell the room exactly what it reveals about whether the performance held. The Liar confirms whether you executed the logic challenge and delivered the conclusion."
     ]
   }
 };
@@ -302,16 +307,18 @@ function qAll(sel) {
 
 function startGame() {
   const rolePool = shuffle([...ROLE_POOLS[state.playerCount]]);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const missionPool = shuffle([...ROLES.loyal.missions]);
+  let missionIdx = 0;
   state.players = state.playerNames.slice(0, state.playerCount).map((name, i) => {
     const role = rolePool[i];
-    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const rawMission = role === 'loyal' ? missionPool[missionIdx++] : null;
     return {
       id: uid(),
       name: name.trim() || 'Player ' + (i + 1),
       role,
-      // Liar gets a randomly assigned lie to maintain; Loyal gets a field mission
-      lie:     role === 'liar'  ? pick(ROLES.liar.lies)         : null,
-      mission: role === 'loyal' ? pick(ROLES.loyal.missions)    : null
+      lie:     role === 'liar'  ? pick(ROLES.liar.lies) : null,
+      mission: rawMission ? escapeHtml(rawMission) : null
     };
   });
   state.phaseOrder = [...PHASE_ORDER[state.mode]];
@@ -629,7 +636,7 @@ function renderRoleReveal() {
   const missionField = player.mission ? `
         <div class="role-field role-field-mission">
           <span class="role-field-label">MISSION</span>
-          <span class="role-field-text">${escapeHtml(player.mission)}</span>
+          <span class="role-field-text">${player.mission}</span>
         </div>` : '';
 
   const visibleCard = `
@@ -882,7 +889,7 @@ function renderMissionVerdict() {
       </div>
       <div class="vote-content">
         <div class="vote-question">Did <strong>${escapeHtml(loyal.name)}</strong> complete their mission?</div>
-        <div class="lie-verdict-excerpt mission">"${escapeHtml(loyal.mission)}"</div>
+        <div class="lie-verdict-excerpt mission">"${loyal.mission}"</div>
         <div class="vote-voter-tag">
           ${escapeHtml(liar.name)} is judging &nbsp;·&nbsp; ${n} of ${total}
         </div>
